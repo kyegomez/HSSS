@@ -895,6 +895,8 @@ class HSSS(nn.Module):
         self,
         layers: List[nn.Module],
         dim: int = 4,
+        num_tokens: int = 10000,
+        seq_length: int = 2048,
         depth: int = 3,
         dt_rank: int = 2,
         d_state: int = 2,
@@ -917,6 +919,8 @@ class HSSS(nn.Module):
         super().__init__()
         self.layers = layers
         self.dim = dim
+        self.num_tokens = num_tokens
+        self.seq_length = seq_length
         self.depth = depth
         self.dt_rank = dt_rank
         self.d_state = d_state
@@ -954,7 +958,10 @@ class HSSS(nn.Module):
             **kwargs,
         )
 
-    def forward(self, x: Tensor, *args, **kwargs):
+        # Embedding layer
+        self.embed = nn.Embedding(num_tokens, dim)
+
+    def forward(self, x, *args, **kwargs):
         """
         Forward pass of the HSSS model.
 
@@ -966,6 +973,11 @@ class HSSS(nn.Module):
         Returns:
             Tensor: Output tensor of the HSSS model.
         """
+        # Tokens embedding, from integers
+        # x = self.embed(x)
+        x = nn.Embedding(self.num_tokens, self.layers[0].dim)(x)
+        print(f"Embedding shape: {x.shape} for tokens")
+
         print(x.shape)
         b, s, d = x.shape
 
@@ -987,12 +999,13 @@ class HSSS(nn.Module):
         else:
             x = nn.Linear(x.size(-1), self.dim)(x)
 
-        x =  self.high_level_mamba(x)
-        
+        x = self.high_level_mamba(x)
+        print(f"High level mamba shape: {x.shape}")
+
         x = torch.split(
             x,
             len(self.layers),
             dim=self.dim_range,
         )
-        
+
         return x

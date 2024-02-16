@@ -2,12 +2,12 @@ import torch
 from hsss.model import LowLevelMamba, HSSS
 
 
-# Reandom tensor
-x = torch.randn(1, 10, 8)
+# Random input text tokens
+text = torch.randint(0, 10, (1, 100)).long()
 
 # Low level model
 mamba = LowLevelMamba(
-    dim=8,  # dimension of input
+    dim=12,  # dimension of input
     depth=6,  # depth of input
     dt_rank=4,  # rank of input
     d_state=4,  # state of input
@@ -25,7 +25,7 @@ mamba = LowLevelMamba(
 
 # Low level model 2
 mamba2 = LowLevelMamba(
-    dim=8,  # dimension of input
+    dim=12,  # dimension of input
     depth=6,  # depth of input
     dt_rank=4,  # rank of input
     d_state=4,  # state of input
@@ -43,7 +43,7 @@ mamba2 = LowLevelMamba(
 
 # Low level mamba 3
 mamba3 = LowLevelMamba(
-    dim=8,  # dimension of input
+    dim=12,  # dimension of input
     depth=6,  # depth of input
     dt_rank=4,  # rank of input
     d_state=4,  # state of input
@@ -62,7 +62,9 @@ mamba3 = LowLevelMamba(
 # HSSS
 hsss = HSSS(
     layers=[mamba, mamba2, mamba3],
-    dim=12,  # dimension of model
+    num_tokens=10,  # number of tokens in model
+    seq_length=100,  # sequence length of model
+    dim=128,  # dimension of model
     depth=3,  # depth of model
     dt_rank=2,  # rank of model
     d_state=2,  # state of model
@@ -80,5 +82,5 @@ hsss = HSSS(
 
 
 # Forward pass
-out = hsss(x)
+out = hsss(text)
 print(out)
