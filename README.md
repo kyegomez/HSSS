@@ -94,7 +94,7 @@ hsss = HSSS(
 
 # Forward pass
 out = hsss(x)
-print(out.shape)
+print(out)
 
 ```
 ## Citation
