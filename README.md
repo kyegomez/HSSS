@@ -117,3 +117,9 @@ print(out)
 # License
 MIT
 
+
+## Todo 
+
+- [ ] Implement the chunking of the tokens by spliting it up the sequence dimension
+
+- [ ] Make the fusion projection layer dynamic and not use just a linear, ffn, or cross attention or even an output head.
