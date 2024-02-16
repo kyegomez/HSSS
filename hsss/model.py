@@ -1,12 +1,11 @@
 import math
 from dataclasses import dataclass
-from typing import Union
+from typing import List, Union
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 from zeta.nn import FeedForward
-from typing import List, Union
 
 
 # taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py

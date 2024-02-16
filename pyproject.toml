@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "hsss"
-version = "0.0.2"
+version = "0.0.5"
 description = "Paper - Pytorch"
 license = "MIT"
 authors = ["Kye Gomez <kye@apac.ai>"]
@@ -23,10 +23,11 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.6"
-swarms = "*"
 zetascale = "*"
 torch = "*"
 torchvision = "*"
+einops = "*"
+
 
 
 [tool.poetry.group.lint.dependencies]
