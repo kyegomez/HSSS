@@ -974,7 +974,6 @@ class HSSS(nn.Module):
             Tensor: Output tensor of the HSSS model.
         """
         # Tokens embedding, from integers
-        # x = self.embed(x)
         x = nn.Embedding(self.num_tokens, self.layers[0].dim)(x)
         print(f"Embedding shape: {x.shape} for tokens")
 
