@@ -910,6 +910,7 @@ class HSSS(nn.Module):
         proj_layer: bool = True,
         ffn: bool = True,
         dropout: float = 0.1,
+        dim_range: int = -2,
         *args,
         **kwargs,
     ):
@@ -931,6 +932,8 @@ class HSSS(nn.Module):
         self.proj_layer = proj_layer
         self.ffn = ffn
         self.ffn_mult = dim * 4
+        self.dropout = dropout
+        self.dim_range = dim_range
 
         # low level mambas
         self.high_level_mamba = HighLevelMamba(
@@ -972,7 +975,7 @@ class HSSS(nn.Module):
             print(x.shape)
             layer_outputs.append(layer_output)
 
-        x = torch.cat(layer_outputs, dim=-2)
+        x = torch.cat(layer_outputs, dim=self.dim_range)
 
         if self.ffn:
             x = FeedForward(
@@ -984,4 +987,12 @@ class HSSS(nn.Module):
         else:
             x = nn.Linear(x.size(-1), self.dim)(x)
 
-        return self.high_level_mamba(x)
+        x =  self.high_level_mamba(x)
+        
+        x = torch.split(
+            x,
+            len(self.layers),
+            dim=self.dim_range,
+        )
+        
+        return x
