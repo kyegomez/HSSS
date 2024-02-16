@@ -776,6 +776,7 @@ class HSSSMamba(nn.Module):
         bias: bool = False,
         conv_bias: bool = True,
         pscan: bool = True,
+        proj_layer: bool = True,
         *args,
         **kwargs,
     ):
@@ -823,8 +824,13 @@ class HSSSMamba(nn.Module):
             pscan=pscan_in,
         )
 
-        # Linear projection
-        self.ffn = FeedForward(dim_in, dim, dim * 4, *args, **kwargs)
+        if proj_layer:
+            # Linear projection
+            self.ffn = FeedForward(
+                dim_in, dim, dim * 4, *args, **kwargs
+            )
+        else:
+            self.ffn = nn.Linear(dim_in, dim)
 
         # High level Mamba
         self.high_level_mamba = HighLevelMamba(
