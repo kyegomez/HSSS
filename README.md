@@ -1,7 +1,9 @@
 [![Multi-Modality](agorabanner.png)](https://discord.gg/qUtxnK2NMf)
 
 # HSSS
-Implementation of a Hierarchical Mamba as described in the paper: "Hierarchical State Space Models for Continuous Sequence-to-Sequence Modeling".
+Implementation of a Hierarchical Mamba as described in the paper: "Hierarchical State Space Models for Continuous Sequence-to-Sequence Modeling" but instead of using traditional SSMs were using Mambas. Basically the flow is single input -> low level mambas -> concat -> high level ssm -> multiple outputs.
+
+I believe in this architecture alot as it segments local and global learning. 
 
 
 ## install
@@ -95,6 +97,19 @@ out = hsss(x)
 print(out.shape)
 
 ```
+## Citation
+```bibtex
+@misc{bhirangi2024hierarchical,
+      title={Hierarchical State Space Models for Continuous Sequence-to-Sequence Modeling}, 
+      author={Raunaq Bhirangi and Chenyu Wang and Venkatesh Pattabiraman and Carmel Majidi and Abhinav Gupta and Tess Hellebrekers and Lerrel Pinto},
+      year={2024},
+      eprint={2402.10211},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
+
 
 # License
 MIT
+
