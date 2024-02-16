@@ -1,3 +1,13 @@
-from hsss.model import LowLevelMamba, HighLevelMamba, HSSSMamba
+from hsss.model import (
+    LowLevelMamba,
+    HighLevelMamba,
+    SimpleHSSSMamba,
+    HSSS,
+)
 
-__all__ = ["LowLevelMamba", "HighLevelMamba", "HSSSMamba"]
+__all__ = [
+    "LowLevelMamba",
+    "HighLevelMamba",
+    "SimpleHSSSMamba",
+    "HSSS",
+]

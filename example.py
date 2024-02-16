@@ -1,9 +1,9 @@
 import torch
-from hsss.model import HSSSMamba
+from hsss.model import SimpleHSSSMamba
 
 x = torch.randn(1, 10, 8)
 
-model = HSSSMamba(
+model = SimpleHSSSMamba(
     dim_in=8,  # dimension of input
     depth_in=6,  # depth of input
     dt_rank_in=4,  # rank of input
@@ -33,4 +33,4 @@ model = HSSSMamba(
 )
 
 out = model(x)
-print(out)
+print(out.shape)

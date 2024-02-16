@@ -1,16 +1,5 @@
-[![Multi-Modality](agorabanner.png)](https://discord.gg/qUtxnK2NMf)
-
-# HSSS
-Implementation of a Hierarchical Mamba as described in the paper: "Hierarchical State Space Models for Continuous Sequence-to-Sequence Modeling".
-
-
-## install
-`pip install hsss`
-
-##  usage
-```python
 import torch
-from hsss import LowLevelMamba, HSSS
+from hsss.model import LowLevelMamba, HSSS
 
 
 # Reandom tensor
@@ -93,8 +82,3 @@ hsss = HSSS(
 # Forward pass
 out = hsss(x)
 print(out.shape)
-
-```
-
-# License
-MIT

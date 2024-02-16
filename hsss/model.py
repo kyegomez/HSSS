@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 from zeta.nn import FeedForward
+from typing import List, Union
 
 
 # taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py
@@ -713,9 +714,9 @@ class HighLevelMamba(nn.Module):
         return self.model(x)
 
 
-class HSSSMamba(nn.Module):
+class SimpleHSSSMamba(nn.Module):
     """
-    HSSSMamba is a PyTorch module that represents the HSSS Mamba model.
+    SimpleHSSSMamba is a PyTorch module that represents the HSSS Mamba model.
 
     Args:
         dim_in (int): Input dimension for the low level Mamba module.
@@ -851,7 +852,7 @@ class HSSSMamba(nn.Module):
 
     def forward(self, x: Tensor):
         """
-        Forward pass of the HSSSMamba model.
+        Forward pass of the SimpleHSSSMamba model.
 
         Args:
             x (Tensor): Input tensor.
@@ -863,3 +864,125 @@ class HSSSMamba(nn.Module):
         x = self.ffn(x)
         x = self.high_level_mamba(x)
         return x
+
+
+class HSSS(nn.Module):
+    """
+    High-level Sparse State Space (HSSS) model.
+
+    Args:
+        layers (List[nn.Module]): List of layers to be applied to the input.
+        dim (int): Dimensionality of the output tensor (default: 4).
+        depth (int): Number of layers in the HSSS model (default: 3).
+        dt_rank (int): Rank of the time step tensor (default: 2).
+        d_state (int): Dimensionality of the state tensor (default: 2).
+        expand_factor (int): Expansion factor for the state tensor (default: 2).
+        d_conv (int): Dimensionality of the convolutional kernel (default: 3).
+        dt_min (float): Minimum value for the time step tensor (default: 0.001).
+        dt_max (float): Maximum value for the time step tensor (default: 0.1).
+        dt_init (str): Initialization method for the time step tensor (default: "random").
+        dt_scale (float): Scaling factor for the time step tensor (default: 1.0).
+        bias (bool): Whether to include bias terms in the model (default: False).
+        conv_bias (bool): Whether to include bias terms in the convolutional layers (default: True).
+        pscan (bool): Whether to use parallel scan for the convolutional layers (default: True).
+        proj_layer (bool): Whether to include a projection layer in the model (default: True).
+        ffn (bool): Whether to use a feed-forward network for the final layer (default: True).
+        dropout (float): Dropout probability for the feed-forward network (default: 0.1).
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        layers: List[nn.Module],
+        dim: int = 4,
+        depth: int = 3,
+        dt_rank: int = 2,
+        d_state: int = 2,
+        expand_factor: int = 2,
+        d_conv: int = 3,
+        dt_min: float = 0.001,
+        dt_max: float = 0.1,
+        dt_init: str = "random",
+        dt_scale: float = 1.0,
+        bias: bool = False,
+        conv_bias: bool = True,
+        pscan: bool = True,
+        proj_layer: bool = True,
+        ffn: bool = True,
+        dropout: float = 0.1,
+        *args,
+        **kwargs,
+    ):
+        super().__init__()
+        self.layers = layers
+        self.dim = dim
+        self.depth = depth
+        self.dt_rank = dt_rank
+        self.d_state = d_state
+        self.expand_factor = expand_factor
+        self.d_conv = d_conv
+        self.dt_min = dt_min
+        self.dt_max = dt_max
+        self.dt_init = dt_init
+        self.dt_scale = dt_scale
+        self.bias = bias
+        self.conv_bias = conv_bias
+        self.pscan = pscan
+        self.proj_layer = proj_layer
+        self.ffn = ffn
+        self.ffn_mult = dim * 4
+
+        # low level mambas
+        self.high_level_mamba = HighLevelMamba(
+            dim=dim,
+            depth=depth,
+            dt_rank=dt_rank,
+            d_state=d_state,
+            expand_factor=expand_factor,
+            d_conv=d_conv,
+            dt_min=dt_min,
+            dt_max=dt_max,
+            dt_init=dt_init,
+            dt_scale=dt_scale,
+            bias=bias,
+            conv_bias=conv_bias,
+            pscan=pscan,
+            *args,
+            **kwargs,
+        )
+
+    def forward(self, x: Tensor, *args, **kwargs):
+        """
+        Forward pass of the HSSS model.
+
+        Args:
+            x (Tensor): Input tensor.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Tensor: Output tensor of the HSSS model.
+        """
+        print(x.shape)
+        b, s, d = x.shape
+
+        layer_outputs = []
+        for layer in self.layers:
+            layer_output = layer(x)
+            print(x.shape)
+            layer_outputs.append(layer_output)
+
+        x = torch.cat(layer_outputs, dim=-2)
+
+        if self.ffn:
+            x = FeedForward(
+                x.size(-1),
+                self.dim,
+                self.ffn_mult,
+            )(x)
+            print(x.shape)
+        else:
+            x = nn.Linear(x.size(-1), self.dim)(x)
+
+        return self.high_level_mamba(x)
