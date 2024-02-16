@@ -1,27 +1,14 @@
-import torch 
-from torch import nn, Tensor, einsum
-from einops import rearrange, repeat
-
 import math
 from dataclasses import dataclass
 from typing import Union
 
 import torch
-from torch import nn 
 import torch.nn.functional as F
+from torch import Tensor, nn
+from zeta.nn import FeedForward
 
-"""
 
-An implementation of the parallel scan operation in PyTorch (Blelloch version).
-This code follows the skeleton proposed by Francois Fleuret in his pscan. However, the keys differences are :
--it has been written in an iterative way (rather than recursive)
--the backward pass has been rewritten
-
-Please see docs/pscan.ipynb for a detailed explanation of what happens here.
-
-"""
-
-# taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py
+# taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py
 class RMSNorm(nn.Module):
     def __init__(self, d_model: int, eps: float = 1e-5):
         super().__init__()
@@ -30,7 +17,11 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(d_model))
 
     def forward(self, x):
-        output = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
+        output = (
+            x
+            * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+            * self.weight
+        )
 
         return output
 
@@ -176,8 +167,7 @@ class MambaConfig:
 
         if self.dt_rank == "auto":
             self.dt_rank = math.ceil(self.dim / 16)
-            
-            
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, config: MambaConfig):
@@ -206,7 +196,6 @@ class ResidualBlock(nn.Module):
         output, cache = self.mixer.step(self.norm(x), cache)
         output = output + x
         return output, cache
-
 
 
 class MambaBlock(nn.Module):
@@ -546,8 +535,8 @@ class Mamba(nn.Module):
             x, caches[i] = layer.step(x, caches[i])
 
         return x, caches
-    
-    
+
+
 class LowLevelMamba(nn.Module):
     """
     LowLevelMamba is a PyTorch module that implements a low-level Mamba model.
@@ -586,7 +575,7 @@ class LowLevelMamba(nn.Module):
         conv_bias: bool = True,
         pscan: bool = True,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.dim = dim
@@ -618,7 +607,7 @@ class LowLevelMamba(nn.Module):
             conv_bias=conv_bias,
             pscan=pscan,
             *args,
-            **kwargs
+            **kwargs,
         )
 
         self.model = Mamba(config)
@@ -634,5 +623,237 @@ class LowLevelMamba(nn.Module):
             Tensor: Output tensor.
         """
         return self.model(x)
-        
-        
+
+
+class HighLevelMamba(nn.Module):
+    """
+    LowLevelMamba is a PyTorch module that implements a low-level Mamba model.
+
+    Args:
+        dim (int): Dimension of the Mamba model. Default is 4.
+        depth (int): Depth of the Mamba model. Default is 3.
+        dt_rank (int): Rank of the time step tensor in the Mamba model. Default is 2.
+        d_state (int): Dimension of the state tensor in the Mamba model. Default is 2.
+        expand_factor (int): Expansion factor of the Mamba model. Default is 2.
+        d_conv (int): Dimension of the convolutional kernel in the Mamba model. Default is 3.
+        dt_min (float): Minimum value of the time step in the Mamba model. Default is 0.001.
+        dt_max (float): Maximum value of the time step in the Mamba model. Default is 0.1.
+        dt_init (str): Initialization method for the time step tensor in the Mamba model. Default is "random".
+        dt_scale (float): Scaling factor for the time step tensor in the Mamba model. Default is 1.0.
+        bias (bool): Whether to include bias terms in the Mamba model. Default is False.
+        conv_bias (bool): Whether to include bias terms in the convolutional layers of the Mamba model. Default is True.
+        pscan (bool): Whether to use parallel scan operation in the Mamba model. Default is True.
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        dim: int = 4,
+        depth: int = 3,
+        dt_rank: int = 2,
+        d_state: int = 2,
+        expand_factor: int = 2,
+        d_conv: int = 3,
+        dt_min: float = 0.001,
+        dt_max: float = 0.1,
+        dt_init: str = "random",
+        dt_scale: float = 1.0,
+        bias: bool = False,
+        conv_bias: bool = True,
+        pscan: bool = True,
+        *args,
+        **kwargs,
+    ):
+        super().__init__()
+        self.dim = dim
+        self.depth = depth
+        self.dt_rank = dt_rank
+        self.d_state = d_state
+        self.expand_factor = expand_factor
+        self.d_conv = d_conv
+        self.dt_min = dt_min
+        self.dt_max = dt_max
+        self.dt_init = dt_init
+        self.dt_scale = dt_scale
+        self.bias = bias
+        self.conv_bias = conv_bias
+        self.pscan = pscan
+
+        config = MambaConfig(
+            dim=dim,
+            depth=depth,
+            dt_rank=dt_rank,
+            d_state=d_state,
+            expand_factor=expand_factor,
+            d_conv=d_conv,
+            dt_min=dt_min,
+            dt_max=dt_max,
+            dt_init=dt_init,
+            dt_scale=dt_scale,
+            bias=bias,
+            conv_bias=conv_bias,
+            pscan=pscan,
+            *args,
+            **kwargs,
+        )
+
+        self.model = Mamba(config)
+
+    def forward(self, x: Tensor):
+        """
+        Forward pass of the LowLevelMamba model.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            Tensor: Output tensor.
+        """
+        return self.model(x)
+
+
+class HSSSMamba(nn.Module):
+    """
+    HSSSMamba is a PyTorch module that represents the HSSS Mamba model.
+
+    Args:
+        dim_in (int): Input dimension for the low level Mamba module.
+        depth_in (int): Depth of the low level Mamba module.
+        dt_rank_in (int): Rank of the time step tensor for the low level Mamba module.
+        d_state_in (int): Dimension of the state tensor for the low level Mamba module.
+        expand_factor_in (int): Expansion factor for the low level Mamba module.
+        d_conv_in (int): Dimension of the convolutional filters for the low level Mamba module.
+        dt_min_in (float): Minimum value for the time step tensor for the low level Mamba module.
+        dt_max_in (float): Maximum value for the time step tensor for the low level Mamba module.
+        dt_init_in (str): Initialization method for the time step tensor for the low level Mamba module.
+        dt_scale_in (float): Scaling factor for the time step tensor for the low level Mamba module.
+        bias_in (bool): Whether to include bias in the low level Mamba module.
+        conv_bias_in (bool): Whether to include bias in the convolutional filters for the low level Mamba module.
+        pscan_in (bool): Whether to use parallel scan in the low level Mamba module.
+        dim (int): Input dimension for the high level Mamba module.
+        depth (int): Depth of the high level Mamba module.
+        dt_rank (int): Rank of the time step tensor for the high level Mamba module.
+        d_state (int): Dimension of the state tensor for the high level Mamba module.
+        expand_factor (int): Expansion factor for the high level Mamba module.
+        d_conv (int): Dimension of the convolutional filters for the high level Mamba module.
+        dt_min (float): Minimum value for the time step tensor for the high level Mamba module.
+        dt_max (float): Maximum value for the time step tensor for the high level Mamba module.
+        dt_init (str): Initialization method for the time step tensor for the high level Mamba module.
+        dt_scale (float): Scaling factor for the time step tensor for the high level Mamba module.
+        bias (bool): Whether to include bias in the high level Mamba module.
+        conv_bias (bool): Whether to include bias in the convolutional filters for the high level Mamba module.
+        pscan (bool): Whether to use parallel scan in the high level Mamba module.
+        *args: Variable length argument list.
+        **kwargs: Arbitrary keyword arguments.
+    """
+
+    def __init__(
+        self,
+        dim_in: int = 8,
+        depth_in: int = 6,
+        dt_rank_in: int = 4,
+        d_state_in: int = 4,
+        expand_factor_in: int = 4,
+        d_conv_in: int = 6,
+        dt_min_in: float = 0.001,
+        dt_max_in: float = 0.1,
+        dt_init_in: str = "random",
+        dt_scale_in: float = 1.0,
+        bias_in: bool = False,
+        conv_bias_in: bool = True,
+        pscan_in: bool = True,
+        dim: int = 4,
+        depth: int = 3,
+        dt_rank: int = 2,
+        d_state: int = 2,
+        expand_factor: int = 2,
+        d_conv: int = 3,
+        dt_min: float = 0.001,
+        dt_max: float = 0.1,
+        dt_init: str = "random",
+        dt_scale: float = 1.0,
+        bias: bool = False,
+        conv_bias: bool = True,
+        pscan: bool = True,
+        *args,
+        **kwargs,
+    ):
+        super().__init__()
+        self.dim_in = dim_in
+        self.depth_in = depth_in
+        self.dt_rank_in = dt_rank_in
+        self.d_state_in = d_state_in
+        self.expand_factor_in = expand_factor_in
+        self.d_conv_in = d_conv_in
+        self.dt_min_in = dt_min_in
+        self.dt_max_in = dt_max_in
+        self.dt_init_in = dt_init_in
+        self.dt_scale_in = dt_scale_in
+        self.bias_in = bias_in
+        self.conv_bias_in = conv_bias_in
+        self.pscan_in = pscan_in
+        self.dim = dim
+        self.depth = depth
+        self.dt_rank = dt_rank
+        self.d_state = d_state
+        self.expand_factor = expand_factor
+        self.d_conv = d_conv
+        self.dt_min = dt_min
+        self.dt_max = dt_max
+        self.dt_init = dt_init
+        self.dt_scale = dt_scale
+        self.bias = bias
+        self.conv_bias = conv_bias
+        self.pscan = pscan
+
+        self.low_level_mamba = LowLevelMamba(
+            dim=dim_in,
+            depth=depth_in,
+            dt_rank=dt_rank_in,
+            d_state=d_state_in,
+            expand_factor=expand_factor_in,
+            d_conv=d_conv_in,
+            dt_min=dt_min_in,
+            dt_max=dt_max_in,
+            dt_init=dt_init_in,
+            dt_scale=dt_scale_in,
+            bias=bias_in,
+            conv_bias=conv_bias_in,
+            pscan=pscan_in,
+        )
+
+        # Linear projection
+        self.ffn = FeedForward(dim_in, dim, dim * 4, *args, **kwargs)
+
+        # High level Mamba
+        self.high_level_mamba = HighLevelMamba(
+            dim=dim,
+            depth=depth,
+            dt_rank=dt_rank,
+            d_state=d_state,
+            expand_factor=expand_factor,
+            d_conv=d_conv,
+            dt_min=dt_min,
+            dt_max=dt_max,
+            dt_init=dt_init,
+            dt_scale=dt_scale,
+            bias=bias,
+            conv_bias=conv_bias,
+            pscan=pscan,
+        )
+
+    def forward(self, x: Tensor):
+        """
+        Forward pass of the HSSSMamba model.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            Tensor: Output tensor.
+        """
+        x = self.low_level_mamba(x)
+        x = self.ffn(x)
+        x = self.high_level_mamba(x)
+        return x
